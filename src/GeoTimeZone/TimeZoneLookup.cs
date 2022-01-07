@@ -12,12 +12,14 @@ namespace GeoTimeZone
     /// </summary>
     public sealed class TimeZoneLookup : ITimeZoneLookup
     {
-        private static readonly ITimeZoneLookup Default = new TimeZoneLookup(new Lazy<IList<string>>(LoadLookupData), TimezoneFileReader.Default);
+        private static readonly ITimeZoneLookup Default = new TimeZoneLookup(5, new Lazy<IList<string>>(LoadLookupData), TimezoneFileReader.Default);
 
+        private readonly int _precision;
         private readonly TimezoneFileReader _timezoneFileReader;
 
-        private TimeZoneLookup(Lazy<IList<string>> lookupData, TimezoneFileReader timezoneFileReader)
+        private TimeZoneLookup(int precision, Lazy<IList<string>> lookupData, TimezoneFileReader timezoneFileReader)
         {
+            _precision = precision;
             LookupData = lookupData;
             _timezoneFileReader = timezoneFileReader;
         }
@@ -26,10 +28,11 @@ namespace GeoTimeZone
         /// Creates a <see cref="ITimeZoneLookup"/> based on <paramref name="timezoneFileStream"/> and <paramref name="timezoneLookupStream"/>
         /// instead of the default embedded data files <c>GeoTimeZone.TZ.dat.gz</c> and <c>GeoTimeZone.TZL.dat.gz</c>
         /// </summary>
+        /// <param name="precision">The geohash precision for <paramref name="timezoneFileStream"/> and <paramref name="timezoneLookupStream"/>.</param>
         /// <param name="timezoneFileStream"></param>
         /// <param name="timezoneLookupStream"></param>
         /// <exception cref="ArgumentNullException" />
-        public static ITimeZoneLookup Create(Stream timezoneFileStream, Stream timezoneLookupStream)
+        public static ITimeZoneLookup Create(int precision, Stream timezoneFileStream, Stream timezoneLookupStream)
         {
             using var reader = new StreamReader(timezoneLookupStream);
 
@@ -42,9 +45,9 @@ namespace GeoTimeZone
             }
 
 #if NETSTANDARD2_1
-            return new TimeZoneLookup(new Lazy<IList<string>>(list), TimezoneFileReader.Create(timezoneFileStream));
+            return new TimeZoneLookup(precision, new Lazy<IList<string>>(list), TimezoneFileReader.Create(precision, timezoneFileStream));
 #else
-            return new TimeZoneLookup(new Lazy<IList<string>>(() => list), TimezoneFileReader.Create(timezoneFileStream));
+            return new TimeZoneLookup(precision, new Lazy<IList<string>>(() => list), TimezoneFileReader.Create(precision, timezoneFileStream));
 #endif
         }
 
@@ -59,7 +62,7 @@ namespace GeoTimeZone
 
         TimeZoneResult ITimeZoneLookup.GetTimeZone(double latitude, double longitude)
         {
-            string geohash = Geohash.Encode(latitude, longitude, 5);
+            string geohash = Geohash.Encode(latitude, longitude, _precision);
             IEnumerable<int> lineNumber = GetTzDataLineNumbers(geohash);
             string[] timeZones = GetTzsFromData(lineNumber).ToArray();
             if (timeZones.Length != 0)
@@ -76,11 +79,11 @@ namespace GeoTimeZone
                 return new List<int>();
 
             int min = seeked, max = seeked;
-            string seekedGeohash = _timezoneFileReader.GetLine(seeked).Substring(0, 5);
+            string seekedGeohash = _timezoneFileReader.GetLine(seeked).Substring(0, _precision);
 
             while (true)
             {
-                string prevGeohash = _timezoneFileReader.GetLine(min - 1).Substring(0, 5);
+                string prevGeohash = _timezoneFileReader.GetLine(min - 1).Substring(0, _precision);
                 if (seekedGeohash == prevGeohash)
                     min--;
                 else
@@ -89,7 +92,7 @@ namespace GeoTimeZone
 
             while (true)
             {
-                string nextGeohash = _timezoneFileReader.GetLine(max + 1).Substring(0, 5);
+                string nextGeohash = _timezoneFileReader.GetLine(max + 1).Substring(0, _precision);
                 if (seekedGeohash == nextGeohash)
                     max++;
                 else
@@ -99,7 +102,7 @@ namespace GeoTimeZone
             var lineNumbers = new List<int>();
             for (int i = min; i <= max; i++)
             {
-                int lineNumber = int.Parse(_timezoneFileReader.GetLine(i).Substring(5));
+                int lineNumber = int.Parse(_timezoneFileReader.GetLine(i).Substring(_precision));
                 lineNumbers.Add(lineNumber);
             }
 

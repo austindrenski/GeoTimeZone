@@ -8,25 +8,26 @@ namespace GeoTimeZone
 {
     internal class TimezoneFileReader
     {
-        private const int LineLength = 8;
         private const int LineEndLength = 1;
 
 #if !NETSTANDARD2_1
         private static readonly object Locker = new object();
 #endif
 
+        private readonly int _lineLength;
         private readonly Lazy<MemoryStream> LazyData;
         private readonly Lazy<int> LazyCount;
 
-        internal static TimezoneFileReader Default { get; } = new TimezoneFileReader(new Lazy<MemoryStream>(LoadData));
+        internal static TimezoneFileReader Default { get; } = new TimezoneFileReader(5, new Lazy<MemoryStream>(LoadData));
 
-        private TimezoneFileReader(Lazy<MemoryStream> loadData)
+        private TimezoneFileReader(int precision, Lazy<MemoryStream> loadData)
         {
+            _lineLength = precision + 3;
             LazyData = loadData;
             LazyCount = new Lazy<int>(GetCount);
         }
 
-        internal static TimezoneFileReader Create(Stream timezoneFileStream)
+        internal static TimezoneFileReader Create(int precision, Stream timezoneFileStream)
         {
             if (!(timezoneFileStream is MemoryStream ms))
             {
@@ -35,9 +36,9 @@ namespace GeoTimeZone
             }
 
 #if NETSTANDARD2_1
-            return new TimezoneFileReader(new Lazy<MemoryStream>(ms));
+            return new TimezoneFileReader(precision, new Lazy<MemoryStream>(ms));
 #else
-            return new TimezoneFileReader(new Lazy<MemoryStream>(() => ms));
+            return new TimezoneFileReader(precision, new Lazy<MemoryStream>(() => ms));
 #endif
         }
 
@@ -64,27 +65,27 @@ namespace GeoTimeZone
         private int GetCount()
         {
             MemoryStream ms = LazyData.Value;
-            return (int) (ms.Length / (LineLength + LineEndLength));
+            return (int) (ms.Length / (_lineLength + LineEndLength));
         }
 
         public int Count => LazyCount.Value;
 
         public string GetLine(int line)
         {
-            int index = (LineLength + LineEndLength) * (line - 1);
+            int index = (_lineLength + LineEndLength) * (line - 1);
 
             MemoryStream stream = LazyData.Value;
 
 #if NETSTANDARD2_1
-            var span = new ReadOnlySpan<byte>(stream.GetBuffer(), index, LineLength);
+            var span = new ReadOnlySpan<byte>(stream.GetBuffer(), index, _lineLength);
             return Encoding.UTF8.GetString(span);
 #else
-            var buffer = new byte[LineLength];
+            var buffer = new byte[_lineLength];
 
             lock (Locker)
             {
                 stream.Position = index;
-                stream.Read(buffer, 0, LineLength);
+                stream.Read(buffer, 0, _lineLength);
             }
 
             return Encoding.UTF8.GetString(buffer, 0, buffer.Length);

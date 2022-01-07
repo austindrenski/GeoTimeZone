@@ -7,6 +7,7 @@ namespace GeoTimeZone.DataBuilder
     public class GeohashTree : List<GeohashTreeNode>
     {
         public const string Base32 = "0123456789bcdefghjkmnpqrstuvwxyz";
+        public const int Precision = 5;
 
         public GeohashTree()
         {
@@ -34,7 +35,7 @@ namespace GeoTimeZone.DataBuilder
                     return new string[0];
                 }
 
-                if (level.Geohash.Length == 5)
+                if (level.Geohash.Length == Precision)
                 {
                     return new[] {level.Geohash};
                 }
