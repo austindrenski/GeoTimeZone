@@ -6,7 +6,7 @@ using System.Text;
 
 namespace GeoTimeZone
 {
-    internal static class TimezoneFileReader
+    internal class TimezoneFileReader
     {
         private const int LineLength = 8;
         private const int LineEndLength = 1;
@@ -15,8 +15,31 @@ namespace GeoTimeZone
         private static readonly object Locker = new object();
 #endif
 
-        private static readonly Lazy<MemoryStream> LazyData = new Lazy<MemoryStream>(LoadData);
-        private static readonly Lazy<int> LazyCount = new Lazy<int>(GetCount);
+        private readonly Lazy<MemoryStream> LazyData;
+        private readonly Lazy<int> LazyCount;
+
+        internal static TimezoneFileReader Default { get; } = new TimezoneFileReader(new Lazy<MemoryStream>(LoadData));
+
+        private TimezoneFileReader(Lazy<MemoryStream> loadData)
+        {
+            LazyData = loadData;
+            LazyCount = new Lazy<int>(GetCount);
+        }
+
+        internal static TimezoneFileReader Create(Stream timezoneFileStream)
+        {
+            if (!(timezoneFileStream is MemoryStream ms))
+            {
+                ms = new MemoryStream();
+                timezoneFileStream.CopyTo(ms);
+            }
+
+#if NETSTANDARD2_1
+            return new TimezoneFileReader(new Lazy<MemoryStream>(ms));
+#else
+            return new TimezoneFileReader(new Lazy<MemoryStream>(() => ms));
+#endif
+        }
 
         private static MemoryStream LoadData()
         {
@@ -38,15 +61,15 @@ namespace GeoTimeZone
             return ms;
         }
 
-        private static int GetCount()
+        private int GetCount()
         {
             MemoryStream ms = LazyData.Value;
             return (int) (ms.Length / (LineLength + LineEndLength));
         }
 
-        public static int Count => LazyCount.Value;
+        public int Count => LazyCount.Value;
 
-        public static string GetLine(int line)
+        public string GetLine(int line)
         {
             int index = (LineLength + LineEndLength) * (line - 1);
 
