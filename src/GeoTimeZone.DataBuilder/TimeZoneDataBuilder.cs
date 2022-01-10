@@ -44,7 +44,7 @@ namespace GeoTimeZone.DataBuilder
 
         private static void WriteGeohash(TextWriter writer, string tz, string geohash)
         {
-            string h = geohash.PadRight(5, '-');
+            string h = geohash.PadRight(GeohashTree.Precision, '-');
             string p = TimeZones[tz].LineNumber.ToString("D3");
             writer.WriteLine(h + p);
         }
